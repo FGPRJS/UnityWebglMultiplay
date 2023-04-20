@@ -1,14 +1,17 @@
+using GameServer.Hub.Game;
+using GameServer.Singletons;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
 builder.Services.AddSignalR();
+builder.Services.AddSingleton<GameManager>();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+app.MapHub<GameHub>("/game");
 
-app.UseDefaultFiles();
-app.UseStaticFiles();
+// Configure the HTTP request pipeline.
 
 app.Run();

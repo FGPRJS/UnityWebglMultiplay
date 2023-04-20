@@ -1,4 +1,5 @@
 using System.Collections;
+using Game.Singleton;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -13,6 +14,11 @@ namespace Game.UI
     
     public class MoveToScene : MonoBehaviour
     {
+        public void ConnectToServer()
+        {
+            ConnectionManager.Instance.ConnectToGame();
+        }
+        
         public void MoveToGameScene()
         {
             UnityEventManager.instance.logEvent.Invoke(new LogEventData()
