@@ -6,9 +6,9 @@ using UnityEngine.Events;
 
 namespace Game.Singleton
 {
-    public static class GameHubMethod
+    public static class GameMethod
     {
-        public static string PlayerConnected = "PlayerConnected";
+        
     }
     
     public static class LobbyMethod
@@ -109,12 +109,14 @@ namespace Game.Singleton
         #endregion
 
         private SignalR _signalRHub;
+        private SignalR _gameRHub;
 
         private string _currentTicket;
 
         public void Initialize()
         {
             _signalRHub = new SignalR();
+            _gameRHub = new SignalR();
         }
         
         public void ConnectToLobby()
@@ -147,6 +149,13 @@ namespace Game.Singleton
                     {
                         log = $"Matched Info : {matchedInfo}"
                     });
+                    
+                    this.MatchingStatus = MatchingStatus.Idle;
+                    this.ConnectionStatus = ConnectionStatus.NotConnected;
+
+                    _signalRHub.Stop();
+
+                    this.ConnectToGame();
                 });
 
 
@@ -176,7 +185,7 @@ namespace Game.Singleton
                 LogMessageManager.instance.logEvent.Invoke(
                     new LogEventData()
                     {
-                        log = "Failed to connect to server."
+                        log = "Failed to connect to lobby server."
                     });
             }
         }
@@ -184,62 +193,30 @@ namespace Game.Singleton
         public void ConnectToGame()
         {
             try{
-                _signalRHub.Init("http://localhost:5000/game");
-
-                // Handler callbacks
-                _signalRHub.On(LobbyMethod.IssueTicket, (string ticket) =>
-                {
-                    _currentTicket = ticket;
-                    
-                    LogMessageManager.instance.logEvent.Invoke(new LogEventData()
-                    {
-                        log = "Issue ticket. Waiting in queue..."
-                    });
-                });
-                
-                _signalRHub.On(LobbyMethod.TicketMatched, (string matchedInfo) =>
-                {
-                    _currentTicket = null;
-                    
-                    LogMessageManager.instance.logEvent.Invoke(new LogEventData()
-                    {
-                        log = "Matched!"
-                    });
-                    
-                    LogMessageManager.instance.logEvent.Invoke(new LogEventData()
-                    {
-                        log = $"Matched Info : {matchedInfo}"
-                    });
-                });
-
+                _gameRHub.Init("http://localhost:5000/game");
 
                 // Connection callbacks
-                _signalRHub.ConnectionStarted += (object sender, ConnectionEventArgs e) =>
+                _gameRHub.ConnectionStarted += (object sender, ConnectionEventArgs e) =>
                 {
-                    this.ConnectionStatus = ConnectionStatus.Connected;
-                    this.MatchingStatus = MatchingStatus.Idle;
-                    
                     // Log the connected ID
                     LogMessageManager.instance.logEvent.Invoke(new LogEventData()
                     {
-                        log = "Connect to lobby hub complete."
+                        log = "Connect to game hub complete."
                     });
                 };
-                _signalRHub.ConnectionClosed += (object sender, ConnectionEventArgs e) =>
+                _gameRHub.ConnectionClosed += (object sender, ConnectionEventArgs e) =>
                 {
                     
                 };
 
-                _signalRHub.Connect();
+                _gameRHub.Connect();
             }
             catch (Exception)
             {
-                this._connectionConnectionStatus = ConnectionStatus.NotConnected;
-                
                 LogMessageManager.instance.logEvent.Invoke(
                     new LogEventData()
                     {
-                        log = "Failed to connect to server."
+                        log = "Failed to connect to game server."
                     });
             }
         }
