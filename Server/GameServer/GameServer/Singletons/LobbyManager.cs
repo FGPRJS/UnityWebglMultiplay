@@ -7,13 +7,15 @@ namespace GameServer.Singletons
 {
     public class LobbyManager
     {
-        private const int LobbySize = 2;
+        private const int LobbySize = 4;
         private const int TicketSize = 16;
+        private const int LobbyMaxWaitingSec = 1;
         
         private readonly ConcurrentQueue<MatchingPlayer> _ticketQueue;
         private readonly ConcurrentDictionary<string, MatchingPlayer> _ticketTokens;
 
         private List<MatchingPlayer> _currentLobby;
+        private long _lobbyCreatedTime;
 
         private readonly Random _random;
         private readonly Timer _queueMatchTimer;
@@ -111,15 +113,39 @@ namespace GameServer.Singletons
                 {
                     continue;
                 }
-
+                
                 switch (this._currentLobby.Count)
                 {
                     case < LobbySize - 1:
                         this._currentLobby.Add(player);
+
+                        var currentTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                        if (currentTime - _lobbyCreatedTime < LobbyMaxWaitingSec * 1000)
+                        {
+                            continue;
+                        }
+
+                        var newMatchedInfos = this._currentLobby.Select(
+                            matchedPlayer => new MatchedInfo()
+                            {
+                                playerId = matchedPlayer.playerName
+                            }).ToList();
+
+                        var matchInfoJson = JsonSerializer.Serialize(newMatchedInfos);
+
+                        foreach (var matchedPlayer in this._currentLobby)
+                        {
+                            this._ticketTokens.TryRemove(matchedPlayer.ticketToken, out _);
+                            matchedPlayer.client.SendCoreAsync(LobbyMethod.TicketMatched, new object[] { matchInfoJson });
+                        }
+
+                        this._currentLobby = new List<MatchingPlayer>(LobbySize);
+                        _lobbyCreatedTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
                         continue;
                     case LobbySize - 1:
                     
-                        var newMatchedInfos = new List<MatchedInfo>
+                        newMatchedInfos = new List<MatchedInfo>
                         {
                             new()
                             {
@@ -133,7 +159,7 @@ namespace GameServer.Singletons
                                 playerId = matchedPlayer.playerName
                             }));
 
-                        var matchInfoJson = JsonSerializer.Serialize(newMatchedInfos);
+                        matchInfoJson = JsonSerializer.Serialize(newMatchedInfos);
 
                         foreach (var matchedPlayer in this._currentLobby)
                         {
@@ -142,6 +168,7 @@ namespace GameServer.Singletons
                         }
 
                         this._currentLobby = new List<MatchingPlayer>(LobbySize);
+                        _lobbyCreatedTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
                         break;
                     
@@ -164,6 +191,7 @@ namespace GameServer.Singletons
                         }
 
                         this._currentLobby = this._currentLobby.GetRange(LobbySize, this._currentLobby.Count - LobbySize);
+                        _lobbyCreatedTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
                         break;
                 }
