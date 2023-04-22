@@ -1,6 +1,7 @@
 using System;
 using Plugins.SignalR;
 using UnityEngine;
+using UnityEngine.Events;
 
 namespace Game.Singleton
 {
@@ -15,6 +16,35 @@ namespace Game.Singleton
         public const string CancelTicket = "CancelTicket";
         public const string TicketMatched = "TicketMatched";
     }
+
+    #region Connection Status
+    public enum ConnectionStatus
+    {
+        NotConnected,
+        Connected
+    }
+    
+    public class ConnectionStatusChangedEventData
+    {
+        public ConnectionStatus status;
+    }
+    #endregion
+
+    #region Matching Status
+    public enum MatchingStatus
+    {
+        Idle,
+        Matching,
+        Matched
+    }
+
+    public class MatchingStatusChangedEventData
+    {
+        public MatchingStatus status;
+    }
+    
+    #endregion
+    
     
     public class ConnectionManager : MonoBehaviour
     {
@@ -27,9 +57,53 @@ namespace Game.Singleton
             {
                 Instance = this;
 
+                this.ConnectionStatus = ConnectionStatus.NotConnected;
+                this.ConnectionStatusChangedEvent = new UnityEvent<ConnectionStatusChangedEventData>();
+                
                 DontDestroyOnLoad(this);
             }
         }
+        
+        #endregion
+        
+        #region ConnectionStatus
+        private ConnectionStatus _connectionConnectionStatus;
+        public ConnectionStatus ConnectionStatus
+        {
+            get => this._connectionConnectionStatus;
+            set
+            {
+                this._connectionConnectionStatus = value;
+                this.ConnectionStatusChangedEvent.Invoke(new ConnectionStatusChangedEventData()
+                {
+                    status = this._connectionConnectionStatus
+                });
+            }
+        }
+        
+        public UnityEvent<ConnectionStatusChangedEventData> ConnectionStatusChangedEvent;
+        
+        #endregion
+        
+        #region MatchingStatus
+
+        private MatchingStatus _matchingStatus;
+
+        public MatchingStatus MatchingStatus
+        {
+            get => this._matchingStatus;
+            set
+            {
+                this._matchingStatus = value;
+                this.MatchingStatusChangedEvent.Invoke(new MatchingStatusChangedEventData()
+                {
+                    status = this._matchingStatus
+                });
+            }
+        }
+        
+        public UnityEvent<MatchingStatusChangedEventData> MatchingStatusChangedEvent;
+
         
         #endregion
 
@@ -44,14 +118,6 @@ namespace Game.Singleton
                 _signalRHub = new SignalR();
                 _signalRHub.Init("http://localhost:5000/lobby");
 
-                _signalRHub.SignalRMessageEvent += (message) =>
-                {
-                    LogMessageManager.instance.logEvent.Invoke(new LogEventData()
-                    {
-                        log = message
-                    });
-                };
-                
                 // Handler callbacks
                 _signalRHub.On(LobbyMethod.IssueTicket, (string ticket) =>
                 {
@@ -82,6 +148,9 @@ namespace Game.Singleton
                 // Connection callbacks
                 _signalRHub.ConnectionStarted += (object sender, ConnectionEventArgs e) =>
                 {
+                    this.ConnectionStatus = ConnectionStatus.Connected;
+                    this.MatchingStatus = MatchingStatus.Idle;
+                    
                     // Log the connected ID
                     LogMessageManager.instance.logEvent.Invoke(new LogEventData()
                     {
@@ -90,13 +159,15 @@ namespace Game.Singleton
                 };
                 _signalRHub.ConnectionClosed += (object sender, ConnectionEventArgs e) =>
                 {
-                    
+                    this.ConnectionStatus = ConnectionStatus.NotConnected;
                 };
 
                 _signalRHub.Connect();
             }
             catch (Exception)
             {
+                this._connectionConnectionStatus = ConnectionStatus.NotConnected;
+                
                 LogMessageManager.instance.logEvent.Invoke(
                     new LogEventData()
                     {
@@ -107,7 +178,11 @@ namespace Game.Singleton
 
         public void CancelTicket()
         {
+            this._signalRHub.Invoke(
+                LobbyMethod.CancelTicket, 
+                this._currentTicket);
             
+            this.MatchingStatus = MatchingStatus.Idle;
         }
 
         public void IssueTicket()
@@ -115,6 +190,8 @@ namespace Game.Singleton
             this._signalRHub.Invoke(
                 LobbyMethod.IssueTicket, 
                 GameManager.Instance.playerInfo.playerLoginInfo.playerName);
+            
+            this.MatchingStatus = MatchingStatus.Matching;
         }
 
         // Update is called once per frame

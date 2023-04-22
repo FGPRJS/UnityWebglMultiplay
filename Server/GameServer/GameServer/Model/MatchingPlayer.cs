@@ -19,5 +19,6 @@ namespace GameServer.Model
         public string playerName { get; set; }
         public IClientProxy client { get; set; }
         public PlayerStatus status { get; set; }
+        public string ticketToken { get; set; }
     }
 }

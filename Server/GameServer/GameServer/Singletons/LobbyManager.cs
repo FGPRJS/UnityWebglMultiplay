@@ -53,6 +53,8 @@ namespace GameServer.Singletons
                 ticketToken = GenerateRandomString(TicketSize);
             }
 
+            lobbyPlayer.ticketToken = ticketToken;
+
             this._ticketQueue.Enqueue(lobbyPlayer);
             this._ticketTokens.TryAdd(ticketToken, lobbyPlayer);
 
@@ -61,12 +63,12 @@ namespace GameServer.Singletons
 
         public void CancelTicket(string ticketToken)
         {
-            this._ticketTokens.TryRemove(ticketToken, out var ticketPlayer);
-
-            if (ticketPlayer == null)
+            if (!this._ticketTokens.ContainsKey(ticketToken))
             {
-                throw new NullReferenceException($"Cannot find ticket [{ticketToken}]");
+                return;
             }
+
+            this._ticketTokens.TryRemove(ticketToken, out var ticketPlayer);
 
             ticketPlayer.status = PlayerStatus.Canceled;
         }
@@ -90,14 +92,19 @@ namespace GameServer.Singletons
 
             while (this._ticketQueue.IsEmpty == false)
             {
-                this._ticketQueue.TryDequeue(out var ticket);
+                this._ticketQueue.TryDequeue(out var player);
 
-                if (ticket == null)
+                if (player == null)
                 {
                     continue;
                 }
 
-                if (ticket.status != PlayerStatus.Matching)
+                if (this._ticketTokens.ContainsKey(player.ticketToken) == false)
+                {
+                    continue;
+                }
+
+                if (player.status != PlayerStatus.Matching)
                 {
                     continue;
                 }
@@ -105,7 +112,7 @@ namespace GameServer.Singletons
                 switch (this._currentLobby.Count)
                 {
                     case < LobbySize - 1:
-                        this._currentLobby.Add(ticket);
+                        this._currentLobby.Add(player);
                         continue;
                     case LobbySize - 1:
                     
@@ -113,7 +120,7 @@ namespace GameServer.Singletons
                         {
                             new()
                             {
-                                playerId = ticket.playerName
+                                playerId = player.playerName
                             }
                         };
 
@@ -127,6 +134,7 @@ namespace GameServer.Singletons
 
                         foreach (var matchedPlayer in this._currentLobby)
                         {
+                            this._ticketTokens.TryRemove(matchedPlayer.ticketToken, out _);
                             matchedPlayer.client.SendCoreAsync(LobbyMethod.TicketMatched, new object[] { matchInfoJson });
                         }
 
@@ -148,6 +156,7 @@ namespace GameServer.Singletons
 
                         foreach (var matchedPlayer in this._currentLobby)
                         {
+                            this._ticketTokens.TryRemove(matchedPlayer.ticketToken, out _);
                             matchedPlayer.client.SendCoreAsync(LobbyMethod.TicketMatched, new object[] { matchInfoJson });
                         }
 
