@@ -27,7 +27,7 @@ namespace GameServer.Hub.Lobby
         }
 
         
-
+        
         public async Task IssueTicket(string playerName)
         {
             var caller = this.Clients.Caller;

@@ -17,7 +17,7 @@ namespace Game.UI
                 {
                     log = "Reconnecting..."
                 });
-                ConnectionManager.Instance.ConnectToServer();
+                ConnectionManager.Instance.ConnectToLobby();
                 return;
             }
             
@@ -56,6 +56,12 @@ namespace Game.UI
                     case ConnectionStatus.NotConnected:
 
                         this.buttonText.text = "RECONNECT";
+
+                        if (ConnectionManager.Instance.MatchingStatus == MatchingStatus.Matching)
+                        {
+                            ConnectionManager.Instance.CancelTicket();
+                        }
+                        
                         return;
                         
                     case ConnectionStatus.Connected:

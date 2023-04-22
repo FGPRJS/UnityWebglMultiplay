@@ -70,7 +70,10 @@ namespace GameServer.Singletons
 
             this._ticketTokens.TryRemove(ticketToken, out var ticketPlayer);
 
-            ticketPlayer.status = PlayerStatus.Canceled;
+            if (ticketPlayer != null)
+            {
+                ticketPlayer.status = PlayerStatus.Canceled;
+            }
         }
 
         private void TicketMatching()

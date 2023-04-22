@@ -9,7 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSignalR(options =>
 {
-    options.KeepAliveInterval = TimeSpan.FromSeconds(10);
+    options.KeepAliveInterval = TimeSpan.FromSeconds(5);
 });
 builder.Services.AddSingleton<GameManager>();
 builder.Services.AddSingleton<LobbyManager>();

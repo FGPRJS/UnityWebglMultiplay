@@ -1,5 +1,6 @@
 using System;
 using Plugins.SignalR;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -110,12 +111,16 @@ namespace Game.Singleton
         private SignalR _signalRHub;
 
         private string _currentTicket;
-    
-        public void ConnectToServer()
+
+        public void Initialize()
+        {
+            _signalRHub = new SignalR();
+        }
+        
+        public void ConnectToLobby()
         {
             try{
-                // Initialize SignalR
-                _signalRHub = new SignalR();
+                // Initialize Signal
                 _signalRHub.Init("http://localhost:5000/lobby");
 
                 // Handler callbacks
@@ -159,7 +164,70 @@ namespace Game.Singleton
                 };
                 _signalRHub.ConnectionClosed += (object sender, ConnectionEventArgs e) =>
                 {
-                    this.ConnectionStatus = ConnectionStatus.NotConnected;
+                    
+                };
+
+                _signalRHub.Connect();
+            }
+            catch (Exception)
+            {
+                this._connectionConnectionStatus = ConnectionStatus.NotConnected;
+                
+                LogMessageManager.instance.logEvent.Invoke(
+                    new LogEventData()
+                    {
+                        log = "Failed to connect to server."
+                    });
+            }
+        }
+
+        public void ConnectToGame()
+        {
+            try{
+                _signalRHub.Init("http://localhost:5000/game");
+
+                // Handler callbacks
+                _signalRHub.On(LobbyMethod.IssueTicket, (string ticket) =>
+                {
+                    _currentTicket = ticket;
+                    
+                    LogMessageManager.instance.logEvent.Invoke(new LogEventData()
+                    {
+                        log = "Issue ticket. Waiting in queue..."
+                    });
+                });
+                
+                _signalRHub.On(LobbyMethod.TicketMatched, (string matchedInfo) =>
+                {
+                    _currentTicket = null;
+                    
+                    LogMessageManager.instance.logEvent.Invoke(new LogEventData()
+                    {
+                        log = "Matched!"
+                    });
+                    
+                    LogMessageManager.instance.logEvent.Invoke(new LogEventData()
+                    {
+                        log = $"Matched Info : {matchedInfo}"
+                    });
+                });
+
+
+                // Connection callbacks
+                _signalRHub.ConnectionStarted += (object sender, ConnectionEventArgs e) =>
+                {
+                    this.ConnectionStatus = ConnectionStatus.Connected;
+                    this.MatchingStatus = MatchingStatus.Idle;
+                    
+                    // Log the connected ID
+                    LogMessageManager.instance.logEvent.Invoke(new LogEventData()
+                    {
+                        log = "Connect to lobby hub complete."
+                    });
+                };
+                _signalRHub.ConnectionClosed += (object sender, ConnectionEventArgs e) =>
+                {
+                    
                 };
 
                 _signalRHub.Connect();
@@ -197,7 +265,16 @@ namespace Game.Singleton
         // Update is called once per frame
         void Start()
         {
-            ConnectToServer();
+            Initialize();
+            ConnectToLobby();
+        }
+
+        void OnApplicationQuit()
+        {
+            if (MatchingStatus == MatchingStatus.Matching)
+            {
+                ConnectionManager.Instance.CancelTicket();
+            }
         }
     }
 }
