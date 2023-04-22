@@ -4,9 +4,7 @@
     {
         public async Task PlayerConnected(string playerName)
         {
-            await Clients.Others.SendCoreAsync(
-                GameHubMethod.PlayerConnected,
-                new object[]{ playerName });
+            
         }
     }
 }

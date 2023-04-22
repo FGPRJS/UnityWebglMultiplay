@@ -1,4 +1,5 @@
 using System;
+using Plugins.SignalR;
 using UnityEngine;
 
 namespace Game.Singleton
@@ -6,6 +7,13 @@ namespace Game.Singleton
     public static class GameHubMethod
     {
         public static string PlayerConnected = "PlayerConnected";
+    }
+    
+    public static class LobbyMethod
+    {
+        public const string IssueTicket = "IssueTicket";
+        public const string CancelTicket = "CancelTicket";
+        public const string TicketMatched = "TicketMatched";
     }
     
     public class ConnectionManager : MonoBehaviour
@@ -18,53 +26,101 @@ namespace Game.Singleton
             if (Instance == null)
             {
                 Instance = this;
-                
+
                 DontDestroyOnLoad(this);
             }
         }
         
         #endregion
 
-        private SignalR _gameHub;
+        private SignalR _signalRHub;
+
+        private string _currentTicket;
     
-        // Start is called before the first frame update
-        public void ConnectToGame()
+        public void ConnectToServer()
         {
-            // Initialize SignalR
-            _gameHub = new SignalR();
-            _gameHub.Init("http://localhost:5000/game");
+            try{
+                // Initialize SignalR
+                _signalRHub = new SignalR();
+                _signalRHub.Init("http://localhost:5000/lobby");
 
-            // Handler callbacks
-            _gameHub.On(GameHubMethod.PlayerConnected, (string payload) =>
-            {
-                
-            });
-
-
-            // Connection callbacks
-            _gameHub.ConnectionStarted += (object sender, ConnectionEventArgs e) =>
-            {
-                // Log the connected ID
-                UnityEventManager.instance.logEvent.Invoke(new LogEventData()
+                _signalRHub.SignalRMessageEvent += (message) =>
                 {
-                    log = "Connect to game hub complete."
+                    LogMessageManager.instance.logEvent.Invoke(new LogEventData()
+                    {
+                        log = message
+                    });
+                };
+                
+                // Handler callbacks
+                _signalRHub.On(LobbyMethod.IssueTicket, (string ticket) =>
+                {
+                    _currentTicket = ticket;
+                    
+                    LogMessageManager.instance.logEvent.Invoke(new LogEventData()
+                    {
+                        log = "Issue ticket. Waiting in queue..."
+                    });
+                });
+                
+                _signalRHub.On(LobbyMethod.TicketMatched, (string matchedInfo) =>
+                {
+                    _currentTicket = null;
+                    
+                    LogMessageManager.instance.logEvent.Invoke(new LogEventData()
+                    {
+                        log = "Matched!"
+                    });
+                    
+                    LogMessageManager.instance.logEvent.Invoke(new LogEventData()
+                    {
+                        log = $"Matched Info : {matchedInfo}"
+                    });
                 });
 
-                _gameHub.Invoke(GameHubMethod.PlayerConnected,
-                    GameManager.Instance.playerInfo.playerLoginInfo.playerName);
-            };
-            _gameHub.ConnectionClosed += (object sender, ConnectionEventArgs e) =>
-            {
-                
-            };
 
-            _gameHub.Connect();
+                // Connection callbacks
+                _signalRHub.ConnectionStarted += (object sender, ConnectionEventArgs e) =>
+                {
+                    // Log the connected ID
+                    LogMessageManager.instance.logEvent.Invoke(new LogEventData()
+                    {
+                        log = "Connect to lobby hub complete."
+                    });
+                };
+                _signalRHub.ConnectionClosed += (object sender, ConnectionEventArgs e) =>
+                {
+                    
+                };
+
+                _signalRHub.Connect();
+            }
+            catch (Exception)
+            {
+                LogMessageManager.instance.logEvent.Invoke(
+                    new LogEventData()
+                    {
+                        log = "Failed to connect to server."
+                    });
+            }
+        }
+
+        public void CancelTicket()
+        {
+            
+        }
+
+        public void IssueTicket()
+        {
+            this._signalRHub.Invoke(
+                LobbyMethod.IssueTicket, 
+                GameManager.Instance.playerInfo.playerLoginInfo.playerName);
         }
 
         // Update is called once per frame
-        void Update()
+        void Start()
         {
-        
+            ConnectToServer();
         }
     }
 }

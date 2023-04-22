@@ -5,49 +5,24 @@ using UnityEngine.SceneManagement;
 
 namespace Game.UI
 {
-    public static class SceneName
-    {
-        public const string LoginScene = "LoginScene";
-        public const string GameScene = "GameScene";
-    }
-
-    
     public class MoveToScene : MonoBehaviour
     {
-        public void ConnectToServer()
+        void Start()
         {
-            ConnectionManager.Instance.ConnectToGame();
-        }
-        
-        public void MoveToGameScene()
-        {
-            UnityEventManager.instance.logEvent.Invoke(new LogEventData()
-            {
-                log = $"Loading scene..."
-            });
-            
-            StartCoroutine(LoadGameScene());
-        }
-        
-        IEnumerator LoadGameScene()
-        {
-            var asyncLoad = SceneManager.LoadSceneAsync(SceneName.GameScene);
-
-            while (!asyncLoad.isDone)
-            {
-                
-                UnityEventManager.instance.logEvent.Invoke(new LogEventData()
+            GameSceneManager.Instance.gameSceneLoadingEvent.AddListener(
+                (e) =>
                 {
-                    log = $"Loading scene process : {asyncLoad.progress * 100}%"
-                });
+                    LogMessageManager.instance.logEvent.Invoke(
+                        new LogEventData()
+                        {
+                            log = e.message
+                        });
+                } );
+        }
 
-                yield return null;
-            }
-            
-            UnityEventManager.instance.logEvent.Invoke(new LogEventData()
-            {
-                log = $"Loading scene complete."
-            });
+        public void MoveToLobbyScene()
+        {
+            GameSceneManager.Instance.MoveToScene(SceneName.LobbyScene);
         }
     }
 }

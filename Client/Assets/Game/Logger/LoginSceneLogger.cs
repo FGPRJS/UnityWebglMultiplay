@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Game.Singleton;
 using UnityEngine;
 
 namespace Game.Logger
@@ -28,7 +29,7 @@ namespace Game.Logger
 
         private void Awake()
         {
-            UnityEventManager.instance.logEvent.AddListener(AddLog);
+            LogMessageManager.instance.logEvent.AddListener(AddLog);
         }
     }
 }
