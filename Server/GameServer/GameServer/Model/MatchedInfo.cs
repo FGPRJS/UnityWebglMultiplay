@@ -3,6 +3,6 @@
 
     public class MatchedInfo
     {
-        public string playerId { get; set; }
-}
+        public string playerName { get; set; }
+    }
 }

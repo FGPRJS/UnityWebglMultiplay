@@ -1,4 +1,6 @@
 using System;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Plugins.SignalR;
 using Unity.VisualScripting;
 using UnityEngine;
@@ -8,8 +10,10 @@ namespace Game.Singleton
 {
     public static class GameMethod
     {
-        
+        public static string EnterGame = "EnterGame";
+        public static string PlayerConnected = "PlayerConnected";
     }
+
     
     public static class LobbyMethod
     {
@@ -121,7 +125,10 @@ namespace Game.Singleton
         
         public void ConnectToLobby()
         {
-            try{
+            try
+            {
+                GameManager.Instance.currentGameInfo = null;
+
                 // Initialize Signal
                 _signalRHub.Init("http://localhost:5000/lobby");
 
@@ -139,7 +146,9 @@ namespace Game.Singleton
                 _signalRHub.On(LobbyMethod.TicketMatched, (string matchedInfo) =>
                 {
                     _currentTicket = null;
-                    
+
+                    GameManager.Instance.currentGameInfo = JsonSerializer.Deserialize<GameInfo>(matchedInfo);
+
                     LogMessageManager.instance.logEvent.Invoke(new LogEventData()
                     {
                         log = "Matched!"
@@ -195,6 +204,24 @@ namespace Game.Singleton
             try{
                 _gameRHub.Init("http://localhost:5000/game");
 
+                _gameRHub.On(GameMethod.EnterGame, (string currentGamePlayInfoJson) =>
+                {
+                    var currentGamePlayInfo = JsonSerializer.Deserialize<GamePlayInfo>(
+                        currentGamePlayInfoJson);
+
+                    GameManager.Instance.currentGamePlayInfo = currentGamePlayInfo;
+
+                    LogMessageManager.instance.logEvent.Invoke(new LogEventData()
+                    {
+                        log = "Enter game successful."
+                    });
+                });
+                
+                _signalRHub.On(GameMethod.PlayerConnected, (string gameId, string playerName) =>
+                {
+                    
+                });
+                
                 // Connection callbacks
                 _gameRHub.ConnectionStarted += (object sender, ConnectionEventArgs e) =>
                 {
@@ -203,6 +230,13 @@ namespace Game.Singleton
                     {
                         log = "Connect to game hub complete."
                     });
+                    
+                    GameSceneManager.Instance.MoveToScene(SceneName.GameScene);
+                    
+                    _gameRHub.Invoke(
+                        GameMethod.EnterGame, 
+                        GameManager.Instance.currentGameInfo.gameId, 
+                        GameManager.Instance.playerInfo.playerLoginInfo.playerName);
                 };
                 _gameRHub.ConnectionClosed += (object sender, ConnectionEventArgs e) =>
                 {

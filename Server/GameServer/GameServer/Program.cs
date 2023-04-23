@@ -11,6 +11,7 @@ builder.Services.AddSignalR(options =>
 {
     options.KeepAliveInterval = TimeSpan.FromSeconds(5);
 });
+builder.Services.AddSingleton<RandomManager>();
 builder.Services.AddSingleton<GameManager>();
 builder.Services.AddSingleton<LobbyManager>();
 
