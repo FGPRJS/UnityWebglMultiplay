@@ -1,7 +1,7 @@
-﻿using GameServer.Model;
+﻿using GameServer.Hub.Lobby;
+using GameServer.Model;
 using System.Collections.Concurrent;
 using System.Text.Json;
-using GameServer.Hub.Lobby;
 
 namespace GameServer.Singletons
 {
@@ -99,6 +99,8 @@ namespace GameServer.Singletons
 
                 #endregion
 
+                #region Lobby Queueing
+
                 while (this._ticketQueue.IsEmpty == false)
                 {
                     this._ticketQueue.TryDequeue(out var player);
@@ -121,7 +123,6 @@ namespace GameServer.Singletons
                     switch (this._currentLobby.Count)
                     {
                         case < LobbySize - 1:
-                            this._currentLobby.Add(player);
 
                             var currentTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                             if (currentTime - _lobbyCreatedTime < LobbyMaxWaitingSec * 1000)
@@ -129,22 +130,7 @@ namespace GameServer.Singletons
                                 continue;
                             }
 
-                            var newMatchedInfos = this._currentLobby.Select(
-                                matchedPlayer => new MatchedInfo()
-                                {
-                                    playerName = matchedPlayer.playerName
-                                }).ToDictionary((matchedPlayer) => matchedPlayer.playerName);
-
-                            var gameInfo = this._gameManager.CreateGameInfo(newMatchedInfos);
-
-                            var matchInfoJson = JsonSerializer.Serialize(gameInfo);
-
-                            foreach (var matchedPlayer in this._currentLobby)
-                            {
-                                this._ticketTokens.TryRemove(matchedPlayer.ticketToken, out _);
-                                matchedPlayer.client.SendCoreAsync(LobbyMethod.TicketMatched,
-                                    new object[] { matchInfoJson });
-                            }
+                            MatchingGame(player);
 
                             this._currentLobby = new List<MatchingPlayer>(LobbySize);
                             _lobbyCreatedTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -152,33 +138,7 @@ namespace GameServer.Singletons
                             continue;
                         case LobbySize - 1:
 
-                            newMatchedInfos = new Dictionary<string, MatchedInfo>
-                            {
-                                [player.playerName] = new()
-                                {
-                                    playerName = player.playerName
-                                }
-                            };
-
-                            foreach (var matchedPlayer in this._currentLobby)
-                            {
-                                newMatchedInfos.Add(matchedPlayer.playerName, new MatchedInfo()
-                                {
-                                    playerName = matchedPlayer.playerName
-                                });
-                            }
-
-
-                            gameInfo = this._gameManager.CreateGameInfo(newMatchedInfos);
-
-                            matchInfoJson = JsonSerializer.Serialize(gameInfo);
-
-                            foreach (var matchedPlayer in this._currentLobby)
-                            {
-                                this._ticketTokens.TryRemove(matchedPlayer.ticketToken, out _);
-                                matchedPlayer.client.SendCoreAsync(LobbyMethod.TicketMatched,
-                                    new object[] { matchInfoJson });
-                            }
+                            MatchingGame(player);
 
                             this._currentLobby = new List<MatchingPlayer>(LobbySize);
                             _lobbyCreatedTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -187,32 +147,7 @@ namespace GameServer.Singletons
 
                         case >= LobbySize:
 
-                            newMatchedInfos = new Dictionary<string, MatchedInfo>
-                            {
-                                [player.playerName] = new()
-                                {
-                                    playerName = player.playerName
-                                }
-                            };
-
-                            foreach (var matchedPlayer in this._currentLobby)
-                            {
-                                newMatchedInfos.Add(matchedPlayer.playerName, new MatchedInfo()
-                                {
-                                    playerName = matchedPlayer.playerName
-                                });
-                            }
-
-                            gameInfo = this._gameManager.CreateGameInfo(newMatchedInfos);
-
-                            matchInfoJson = JsonSerializer.Serialize(gameInfo);
-
-                            foreach (var matchedPlayer in this._currentLobby)
-                            {
-                                this._ticketTokens.TryRemove(matchedPlayer.ticketToken, out _);
-                                matchedPlayer.client.SendCoreAsync(LobbyMethod.TicketMatched,
-                                    new object[] { matchInfoJson });
-                            }
+                            MatchingGame(player);
 
                             this._currentLobby =
                                 this._currentLobby.GetRange(LobbySize, this._currentLobby.Count - LobbySize);
@@ -221,15 +156,43 @@ namespace GameServer.Singletons
                             break;
                     }
                 }
+
+                #endregion
             }
             catch (Exception)
             {
-
+                // ignored
             }
             finally
             {
                 this._matchStatus = QueueMatchStatus.Idle;
                 Console.WriteLine($"{DateTime.Now} : Unlock match status.");
+            }
+        }
+
+        private void MatchingGame(MatchingPlayer player)
+        {
+            this._currentLobby.Add(player);
+
+            var newMatchedInfos = new Dictionary<string, MatchedInfo>();
+
+            foreach (var matchedPlayer in this._currentLobby)
+            {
+                newMatchedInfos.Add(matchedPlayer.playerName, new MatchedInfo()
+                {
+                    playerName = matchedPlayer.playerName
+                });
+            }
+
+            var gameInfo = this._gameManager.CreateGameInfo(newMatchedInfos);
+
+            var matchInfoJson = JsonSerializer.Serialize(gameInfo);
+
+            foreach (var matchedPlayer in this._currentLobby)
+            {
+                this._ticketTokens.TryRemove(matchedPlayer.ticketToken, out _);
+                matchedPlayer.client.SendCoreAsync(LobbyMethod.TicketMatched,
+                    new object[] { matchInfoJson });
             }
         }
     }
